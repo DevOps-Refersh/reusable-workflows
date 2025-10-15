@@ -1,0 +1,42 @@
+name: Demo - Call Reusable Terraform Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: 'Terraform action (plan|apply|destroy)'
+        required: false
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+
+jobs:
+  invoke:
+    uses: DevOps-Refersh/reusable-workflows/.github/workflows/aws-s3.yml@main
+    with:
+      environment: ${{ inputs.environment }}
+      action: ${{ inputs.action }}
+      #aws-role-to-assume: arn:aws:iam::746669232009:role/GitHubActionsRole
+      aws-region: 'us-east-1'
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    secrets:
+      aws-role-to-assume: ${{ secrets.DEMO_AWS_ROLE_ARN }}
+      AUTH_GITHUB_TOKEN: ${{ secrets.AUTH_GITHUB_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
