@@ -1,0 +1,145 @@
+# Reusable Terraform workflow
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: "Target deployment environment (e.g. dev, staging, prod)"
+      action:
+        required: false
+        type: string
+        description: "Terraform action to execute: plan|apply|destroy"
+        default: "plan"
+      aws-role-to-assume:
+        description: "AWS Role to assume (ARN)"
+        required: true
+        type: string
+      aws-region:
+        description: "AWS Region"
+        required: false
+        type: string
+        default: "us-east-1"
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+    outputs:
+      plan-created:
+        description: "Whether a plan file was created (true/false)"
+      plan-output:
+        description: "Raw terraform plan output (may be large)"
+
+jobs:
+  terraform:
+    name: Terraform - ${{ inputs.environment }} - ${{ inputs.action }}
+    runs-on: self-hosted
+    concurrency:
+      group: terraform-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    env:
+      TERRAFORM_DIR: ${{ github.workspace }}
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - id: init
+        name: Run terraform init
+        run: terraform init -input=false
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - id: validate
+        name: Run terraform validate
+        run: terraform validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - id: plan
+        name: Run terraform plan
+        if: ${{ inputs.action == 'plan' || (github.event_name == 'pull_request' && github.event.action != 'closed') }}
+        run: |
+          set -euo pipefail
+          terraform plan -input=false -out=tfplan -detailed-exitcode || true
+          PLAN_EXITCODE=$?
+          echo "plan-exit-code=$PLAN_EXITCODE" >> $GITHUB_OUTPUT || true
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan_output.txt
+            echo "plan-created=true" >> $GITHUB_OUTPUT || true
+          else
+            echo "plan-created=false" >> $GITHUB_OUTPUT || true
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -f plan_output.txt ]; then
+            PLAN_COMMENT=$(sed 's/"/\\"/g' plan_output.txt | awk '{printf "%s\\n", $0}')
+            curl -s -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+              -d "{\"body\": \"**Terraform Plan Output:**\\n\\n\\`\\`\\`\\n$PLAN_COMMENT\\n\\`\\`\\`\"}"
+          fi
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - id: apply
+        name: Run terraform apply
+        if: ${{ inputs.action == 'apply' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) }}
+        run: |
+          set -euo pipefail
+          if [ -f tfplan ]; then
+            terraform apply -auto-approve -input=false tfplan
+          else
+            terraform plan -input=false -out=tfplan
+            terraform apply -auto-approve -input=false tfplan
+          fi
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Clean up plan file
+        if: ${{ (inputs.action == 'apply' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)) && success() }}
+        run: rm -f tfplan || true
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Post Apply Comment
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && success() }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+            -d "{\"body\": \"**Terraform Apply Succeeded:**\\n\\nThe Terraform apply operation has been successfully completed.\"}"
+
+      - name: Set workflow outputs
+        if: always()
+        run: |
+          if [ -f plan_output.txt ]; then
+            echo "plan-output<<EOF" >> $GITHUB_OUTPUT
+            cat plan_output.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "plan-created=true" >> $GITHUB_OUTPUT
+            # ensure declared output matches
+            echo "plan-output=$(cat plan_output.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "plan-created=false" >> $GITHUB_OUTPUT
+          fi
