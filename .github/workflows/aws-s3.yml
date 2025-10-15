@@ -5,6 +5,14 @@ on:
         required: true
         type: string
         description: 'Target deployment environment'
+      aws-role-to-assume:
+        description: 'AWS Role assign'
+        required: true
+      aws-region:
+        description: 'AWS Region'
+        required: true
+        type: string 
+        default: 'us-east-1'
 # on:
 #   workflow_dispatch:
 #     inputs:
@@ -47,8 +55,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::746669232009:role/GitHubActionsRole
-          aws-region: ap-south-1
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          #role-to-assume: arn:aws:iam::746669232009:role/GitHubActionsRole
+          aws-region: ${{ inputs.aws-region }}
 
       - id: init
         name: Run terraform init
