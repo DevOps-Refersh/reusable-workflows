@@ -36,7 +36,7 @@ jobs:
       id-token: write
       pull-requests: write
     secrets:
-      aws-role-to-assume: ${{ secrets.DEMO_AWS_ROLE_ARN }}
+      DEMO_AWS_ROLE_ARN: ${{ secrets.DEMO_AWS_ROLE_ARN }}
       AUTH_GITHUB_TOKEN: ${{ secrets.AUTH_GITHUB_TOKEN }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
