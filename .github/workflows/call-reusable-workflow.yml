@@ -25,7 +25,7 @@ on:
 
 jobs:
   invoke:
-    uses: .github/workflows/aws-s3.yml@main
+    uses: ./aws-s3.yml@main
     with:
       environment: ${{ inputs.environment }}
       action: ${{ inputs.action }}
