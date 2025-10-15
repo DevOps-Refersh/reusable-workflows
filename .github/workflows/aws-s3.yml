@@ -1,18 +1,25 @@
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      action:
-        description: 'Terraform Action to Execute'
+      environment:
         required: true
-        default: 'plan'
-        type: choice
-        options:
-          - plan
-          - apply
-          - destroy
-  pull_request:
-    branches: [ main ]
-    types: [opened, synchronize, reopened, closed]
+        type: string
+        description: 'Target deployment environment'
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       action:
+#         description: 'Terraform Action to Execute'
+#         required: true
+#         default: 'plan'
+#         type: choice
+#         options:
+#           - plan
+#           - apply
+#           - destroy
+#   pull_request:
+#     branches: [ main ]
+#     types: [opened, synchronize, reopened, closed]
 
 jobs:
   terraform:
@@ -40,7 +47,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::859493432175:role/GithubActionsDeployments
+          role-to-assume: arn:aws:iam::746669232009:role/GitHubActionsRole
           aws-region: ap-south-1
 
       - id: init
