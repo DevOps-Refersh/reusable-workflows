@@ -29,11 +29,11 @@ on:
         required: false
       AWS_SESSION_TOKEN:
         required: false
-    outputs:
-      plan-created:
-        description: "Whether a plan file was created (true/false)"
-      plan-output:
-        description: "Raw terraform plan output (may be large)"
+    # outputs:
+    #   plan-created:
+    #     description: "Whether a plan file was created (true/false)"
+    #   plan-output:
+    #     description: "Raw terraform plan output (may be large)"
 
 jobs:
   plan:
