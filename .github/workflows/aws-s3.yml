@@ -21,7 +21,7 @@ on:
         type: string
         default: "us-east-1"
     secrets:
-      AUTH_GITHUB_TOKEN:
+      GITHUB_TOKEN:
         required: true
       AWS_ACCESS_KEY_ID:
         required: false
